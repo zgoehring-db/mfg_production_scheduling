@@ -1,7 +1,3 @@
-# Databricks notebook source
-# Databricks / ML Routing Demo Utilities
-# ---------------------------------------
-
 import pandas as pd
 
 # -------------------------------------------------------------------
@@ -89,7 +85,7 @@ def greedy_assign_priority(candidates_df, machines_catalog_df, planning_days=21,
 # -------------------------------------------------------------------
 # KPI computation helper
 # -------------------------------------------------------------------
-def compute_kpis_from_assigned(assigned_pd, machines_catalog_pd, planning_days=21):
+def compute_kpis(assigned_pd, machines_catalog_pd, planning_days=21):
     """
     Compute high-level KPIs from an assigned order–machine DataFrame.
 

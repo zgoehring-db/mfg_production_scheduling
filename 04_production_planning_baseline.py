@@ -3,6 +3,7 @@ import mlflow
 import pandas as pd
 import numpy as np
 from pyspark.sql import functions as F
+from utils.routing_helpers import greedy_assign_priority, compute_kpis
 
 CATALOG = "zg"
 SCHEMA = "production_scheduling_demo"
@@ -49,83 +50,15 @@ cand_pd = cand_pd.sort_values(by="profit_score", ascending=False).reset_index(dr
 
 # COMMAND ----------
 
-import sys
-import os
-
-# Add parent directory to the Python path so utils is discoverable
-sys.path.append(os.path.abspath('.'))
-
-from utils.routing_helpers import greedy_assign_priority, compute_kpis_from_assigned
-
-# COMMAND ----------
-
-# Greedy assignment with priority (profit, due date, hours)
-def greedy_assign_priority(candidates_df, machines_catalog_df, planning_days=PLANNING_DAYS, down_machines=None):
-    down_machines = set(down_machines or [])
-
-    # Build capacity map
-    if hasattr(machines_catalog_df, "toPandas"):  # Spark DF
-        machines_list = machines_catalog_df.toPandas().to_dict(orient="records")
-    elif isinstance(machines_catalog_df, pd.DataFrame):
-        machines_list = machines_catalog_df.to_dict(orient="records")
-    else:
-        machines_list = list(machines_catalog_df)
-
-    machine_caps = {
-        m["machine_id"]: float(m["daily_capacity_hours"] * planning_days)
-        for m in machines_list
-    }
-    for m in down_machines:
-        machine_caps[m] = 0.0
-
-    # Ensure pandas
-    cand = candidates_df if isinstance(candidates_df, pd.DataFrame) else candidates_df.toPandas()
-
-    # Priority: profit_score > earliest due > shortest hours
-    order_priority = (
-        cand.groupby("order_id")
-            .agg(max_profit_score=("profit_score", "max"),
-                 min_due=("promised_date", "min"),
-                 min_hours=("processing_hours", "min"))
-            .sort_values(by=["max_profit_score", "min_due", "min_hours"],
-                         ascending=[False, True, True])
-            .reset_index()
-    )
-
-    # Pre-split by order for speed
-    cand_by_order = {
-        oid: g.sort_values(by=["profit_score", "processing_hours"], ascending=[False, True])
-        for oid, g in cand.groupby("order_id", sort=False)
-    }
-
-    assigned = []
-    for _, rowp in order_priority.iterrows():
-        oid = rowp["order_id"]
-        group = cand_by_order[oid]
-        for _, c in group.iterrows():
-            mid = c["machine_id"]
-            if mid in down_machines:
-                continue
-            need = float(c["processing_hours"])
-            if machine_caps.get(mid, 0.0) >= need:
-                machine_caps[mid] -= need
-                assigned.append({
-                    "order_id": oid,
-                    "machine_id": mid,
-                    "profit": float(c["margin"]),
-                    "p_best": float(c["p_best"]),
-                    "processing_hours": need,
-                    "profit_score": float(c["profit_score"]),
-                    "base_confidence": float(c["base_confidence"])
-                })
-                break  # assigned
-    return pd.DataFrame(assigned), machine_caps
+# saved scored candidates to delta table
+cand_sdf = spark.createDataFrame(cand_pd)
+cand_sdf.write.mode("overwrite").saveAsTable(f"{CATALOG}.{SCHEMA}.candidate_routes_scored")
 
 # COMMAND ----------
 
 # Baseline scenario (all machines operational)
 machines_pd = machines_df.toPandas()
-assigned_baseline, caps_baseline = greedy_assign(cand_pd, machines_pd, PLANNING_DAYS, down_machines=[])
+assigned_baseline, caps_baseline = greedy_assign_priority(cand_pd, machines_pd, PLANNING_DAYS, down_machines=[])
 
 # Convert assigned baseline to Spark DF and save
 assigned_baseline_sdf = spark.createDataFrame(assigned_baseline)
@@ -144,3 +77,15 @@ display(assigned_baseline_sdf)
 # COMMAND ----------
 
 display(caps_baseline_df)
+
+# COMMAND ----------
+
+baseline_kpis = kpi_base = compute_kpis(assigned_baseline, machines_pd)
+
+# COMMAND ----------
+
+print(baseline_kpis)
+
+# COMMAND ----------
+
+
