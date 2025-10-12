@@ -1,0 +1,13 @@
+command: ["streamlit", "run", "app.py"]
+env:
+  - name: "DATABRICKS_WAREHOUSE_ID"
+    valueFrom: "sql-warehouse"
+  # uc config
+  - name: "CATALOG"
+    value: "zg"
+  - name: "SCHEMA"
+    value: "production_scheduling_demo"
+
+  # streamlit config
+  - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
+    value: "false"
