@@ -132,8 +132,16 @@ st.markdown("""
             background-color: #EA580C !important;  /* darker on hover */
         }
 
-
-
+        /* --- FULL WIDTH DATAFRAMES --- */
+        [data-testid="stDataFrame"] {
+            width: 100% !important;
+        }
+        [data-testid="stDataFrame"] > div {
+            width: 100% !important;
+        }
+        div[data-testid="stDataFrame"] iframe {
+            width: 100% !important;
+        }
 
 
     </style>
