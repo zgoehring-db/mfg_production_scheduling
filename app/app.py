@@ -31,10 +31,8 @@ def get_user_token():
     except Exception:
         return None
 
-def get_sql_connection():
+def get_sql_connection(user_token=None):
     """Create SQL connection with OBO or service principal auth"""
-    user_token = get_user_token()
-    
     connect_kwargs = {
         "server_hostname": cfg.host,
         "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
@@ -47,22 +45,24 @@ def get_sql_connection():
     
     return sql.connect(**connect_kwargs)
 
-def sqlQuery(query: str) -> pd.DataFrame:
+def sqlQuery(query: str, user_token=None) -> pd.DataFrame:
     """Execute a SQL query"""
-    with get_sql_connection() as connection:
+    with get_sql_connection(user_token) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query)
             return cursor.fetchall_arrow().to_pandas()
 
+# Get user token for OBO authentication (at module level)
+user_token = get_user_token()
+
 # -------------------------------------------------
 # Data Load
 # -------------------------------------------------
-@st.cache_data(ttl=60)
 def load_data():
-    """Load data from Databricks"""
-    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog")
-    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored")
-    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline")
+    """Load data from Databricks."""
+    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog", user_token)
+    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored", user_token)
+    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline", user_token)
     return machines, candidates, assigned_baseline
 
 machines_df, cand_df, assigned_baseline_df = load_data()
