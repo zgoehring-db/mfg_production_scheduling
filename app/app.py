@@ -21,14 +21,31 @@ assert os.getenv("DATABRICKS_WAREHOUSE_ID"), "DATABRICKS_WAREHOUSE_ID must be se
 # -------------------------------------------------
 def sqlQuery(query: str) -> pd.DataFrame:
     cfg = Config()  # Handles Databricks auth automatically
-    headers = st.context.headers
-    user_access_token = headers["X-Forwarded-Access-Token"] # obo authentication
+    
+    # Try to get OBO token from context
+    try:
+        headers = st.context.headers
+        user_access_token = headers.get("X-Forwarded-Access-Token")
+        if not user_access_token:
+            st.warning("⚠️ No OBO token found in headers. Available headers: " + str(list(headers.keys())))
+            # Fallback to service principal auth
+            user_access_token = None
+    except Exception as e:
+        st.warning(f"⚠️ Could not access context headers: {e}")
+        user_access_token = None
+    
+    # Connect with appropriate authentication
+    connect_kwargs = {
+        "server_hostname": cfg.host,
+        "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
+    }
+    
+    if user_access_token:
+        connect_kwargs["access_token"] = user_access_token
+    else:
+        connect_kwargs["credentials_provider"] = lambda: cfg.authenticate
 
-    with sql.connect(
-        server_hostname=cfg.host,
-        access_token=user_access_token,
-        http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
-    ) as connection:
+    with sql.connect(**connect_kwargs) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query)
             return cursor.fetchall_arrow().to_pandas()
@@ -187,12 +204,10 @@ if order_selected:
             override_row["override_timestamp"] = pd.Timestamp.now()
 
             # Write to UC table
-            headers = st.context.headers
-            user_access_token = headers["X-Forwarded-Access-Token"]
             with sql.connect(
                 server_hostname=Config().host,
-                access_token=user_access_token,
-                http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
+                http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
+                credentials_provider=lambda: Config().authenticate
             ) as conn:
                 override_row.to_sql(
                     name=f"{CATALOG}.{SCHEMA}.assigned_overrides",
