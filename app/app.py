@@ -33,6 +33,14 @@ def get_user_token():
 
 def get_sql_connection(user_token=None):
     """Create SQL connection with OBO or service principal auth"""
+    st.write("🔍 DEBUG Connection Parameters:")
+    st.write(f"  - server_hostname: {cfg.host}")
+    st.write(f"  - http_path: /sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}")
+    st.write(f"  - has user_token: {bool(user_token)}")
+    
+    if user_token:
+        st.write(f"  - token preview: {user_token[:50]}...")
+    
     connect_kwargs = {
         "server_hostname": cfg.host,
         "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
@@ -43,7 +51,18 @@ def get_sql_connection(user_token=None):
     else:
         connect_kwargs["credentials_provider"] = lambda: cfg.authenticate
     
-    return sql.connect(**connect_kwargs)
+    try:
+        st.write("🔄 Attempting connection...")
+        conn = sql.connect(**connect_kwargs)
+        st.success("✅ Connection successful!")
+        return conn
+    except Exception as e:
+        st.error(f"❌ Connection failed!")
+        st.error(f"Error type: {type(e).__name__}")
+        st.error(f"Error message: {str(e)}")
+        import traceback
+        st.code(traceback.format_exc())
+        raise
 
 def sqlQuery(query: str, user_token=None) -> pd.DataFrame:
     """Execute a SQL query"""
@@ -54,6 +73,10 @@ def sqlQuery(query: str, user_token=None) -> pd.DataFrame:
 
 # Get user token for OBO authentication (at module level)
 user_token = get_user_token()
+if user_token:
+    st.sidebar.success(f"✅ OBO Token Retrieved: {user_token[:20]}...")
+else:
+    st.sidebar.warning("⚠️ No OBO token - using service principal")
 
 # -------------------------------------------------
 # Data Load
