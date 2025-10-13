@@ -54,10 +54,38 @@ def load_data():
     """Load data from Databricks"""
     machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog")
     candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored")
-    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline")
-    return machines, candidates, assigned_baseline
+    
+    # Join assigned_baseline with orders_backlog to get enriched order details
+    assigned_baseline = sqlQuery(f"""
+        SELECT 
+            a.order_id,
+            a.machine_id,
+            a.profit,
+            a.p_best,
+            a.processing_hours,
+            o.part_id,
+            o.category,
+            o.customer_name,
+            o.quantity
+        FROM {CATALOG}.{SCHEMA}.assigned_baseline a
+        LEFT JOIN {CATALOG}.{SCHEMA}.orders_backlog o
+            ON a.order_id = o.order_id
+    """)
+    
+    # Load orders_backlog separately for use in recalculation joins
+    orders_backlog = sqlQuery(f"""
+        SELECT 
+            order_id, 
+            part_id, 
+            category, 
+            customer_name, 
+            quantity 
+        FROM {CATALOG}.{SCHEMA}.orders_backlog
+    """)
+    
+    return machines, candidates, assigned_baseline, orders_backlog
 
-machines_df, cand_df, assigned_baseline_df = load_data()
+machines_df, cand_df, assigned_baseline_df, orders_backlog_df = load_data()
 
 # Compute baseline KPIs
 kpi_baseline = compute_kpis(assigned_baseline_df, machines_df)
@@ -97,7 +125,6 @@ st.markdown("""
         /* --- GLOBAL PAGE STYLE --- */
         [data-testid="stAppViewContainer"] {
             background-color: #f5f7fb;
-            # background-image: linear-gradient(180deg, #f8f9fb 0%, #eef2f6 100%);
         }
 
         [data-testid="stSidebar"] {
@@ -132,9 +159,8 @@ st.markdown("""
             margin-top: 15px;
             border-radius: 10px;
         }
-        /* --- SmartFab primary button --- */
-        /* --- SmartFab primary button (deeper logo blue) --- */
-        /* --- SmartFab primary button (flat warm orange) --- */
+        
+        /* --- BUTTON STYLING --- */
         div.stButton > button:first-child {
             background-color: #F59E0B !important;  /* warm amber-orange */
             color: white !important;
@@ -168,6 +194,14 @@ if recalc:
     assigned_scenario_df, caps_scenario = greedy_assign_priority(
         cand_df, machines_df, planning_days=21, down_machines=down_machines
     )
+    
+    # Enrich the recalculated assignments with order details (same join pattern as baseline)
+    assigned_scenario_df = assigned_scenario_df.merge(
+        orders_backlog_df, 
+        on='order_id', 
+        how='left'
+    )
+    
     kpi_scenario = compute_kpis(assigned_scenario_df, machines_df)
 else:
     assigned_scenario_df, kpi_scenario = assigned_baseline_df, kpi_baseline
@@ -265,14 +299,19 @@ scenario_vals = [
 for i, label in enumerate(kpi_labels):
     delta = scenario_vals[i] - baseline_vals[i]
     color = "green" if delta > 0 else "red" if delta < 0 else "#555"
+    
+    # Only show delta if routes were recalculated
+    if recalc:
+        delta_html = f'<div class="kpi-delta" style="color:{color};">Δ {delta:+.2f}</div>'
+    else:
+        delta_html = ''
+    
     cols[i].markdown(
         f"""
         <div class="kpi-card">
             <div class="kpi-label">{label}</div>
             <div class="kpi-value">{scenario_vals[i]:,.2f}</div>
-            <div class="kpi-delta" style="color:{color};">
-                Δ {delta:+.2f}
-            </div>
+            {delta_html}
         </div>
         """,
         unsafe_allow_html=True,
@@ -283,7 +322,9 @@ for i, label in enumerate(kpi_labels):
 # -------------------------------------------------
 st.markdown("")  # Add spacing
 st.markdown("### 🧾 Assigned Orders")
-st.dataframe(assigned_scenario_df, use_container_width=True)
+# Display only user-friendly columns (hide calculation-only columns)
+display_columns = ['order_id', 'machine_id', 'part_id', 'category', 'customer_name', 'quantity']
+st.dataframe(assigned_scenario_df[display_columns], use_container_width=True)
 
 # -------------------------------------------------
 # Override History Table
