@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 # -------------------------------------------------
 st.set_page_config(
     page_title="SmartFab Production Scheduling",
-    page_icon="🏭",
+    page_icon="assets/favicon.png",
     layout="wide",
     initial_sidebar_state="expanded"
 )
