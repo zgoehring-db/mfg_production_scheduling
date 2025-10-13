@@ -8,6 +8,16 @@ from utils.routing_helpers import greedy_assign_priority, compute_kpis
 from utils.lakebase_utils import add_override, fetch_overrides
 from dotenv import load_dotenv
 
+# -------------------------------------------------
+# Page Configuration (must be first Streamlit command)
+# -------------------------------------------------
+st.set_page_config(
+    page_title="SmartFab Production Scheduling",
+    page_icon="🏭",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
 load_dotenv()
 # -------------------------------------------------
 # Environment setup
@@ -131,27 +141,6 @@ st.markdown("""
             box-shadow: 0px 5px 12px rgba(0, 0, 0, 0.25);
             background-color: #EA580C !important;  /* darker on hover */
         }
-
-        /* --- FULL WIDTH DATAFRAMES --- */
-        [data-testid="stDataFrame"],
-        [data-testid="stDataFrame"] > div,
-        [data-testid="stDataFrame"] iframe,
-        div[data-testid="stDataFrame"],
-        .dataframe-container {
-            width: 100% !important;
-            max-width: 100% !important;
-        }
-        
-        /* Force full width on all dataframe elements */
-        .stDataFrame {
-            width: 100% !important;
-        }
-        
-        /* Ensure parent containers don't constrain width */
-        div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] > div[data-testid="stDataFrame"] {
-            width: 100% !important;
-        }
-
 
     </style>
 """, unsafe_allow_html=True)
