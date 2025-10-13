@@ -21,11 +21,11 @@ assert os.getenv("DATABRICKS_WAREHOUSE_ID"), "DATABRICKS_WAREHOUSE_ID must be se
 # -------------------------------------------------
 def sqlQuery(query: str) -> pd.DataFrame:
     cfg = Config()  # Handles Databricks auth automatically
-    user_token = request.headers.get("x-forwarded-access-token") # obo authentication
+    user_access_token = st.context.headers.get('x-forwarded-access-token') # obo authentication
 
     with sql.connect(
         server_hostname=cfg.host,
-        access_token=user_token,
+        access_token=user_access_token,
         http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
         credentials_provider=lambda: cfg.authenticate
     ) as connection:
