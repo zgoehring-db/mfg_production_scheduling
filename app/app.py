@@ -69,22 +69,6 @@ kpi_baseline = compute_kpis(assigned_baseline_df, machines_df)
 # -------------------------------------------------
 st.markdown("""
     <style>
-        /* --- Balanced full-width layout --- */
-        [data-testid="stAppViewContainer"] > .main {
-            max-width: 90% !important;     /* ✅ gives ~5% margin on each side */
-            margin: 0 auto !important;     /* centers the container */
-            padding-left: 1.5rem !important;
-            padding-right: 1.5rem !important;
-        }
-
-        /* --- Inner block adjustments for tables and KPI cards --- */
-        .block-container {
-            padding-left: 0 !important;
-            padding-right: 0 !important;
-            max-width: 90% !important;
-        }
-
-    
         /* --- GLOBAL PAGE STYLE --- */
         [data-testid="stAppViewContainer"] {
             background-color: #f5f7fb;
