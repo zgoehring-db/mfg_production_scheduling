@@ -1,6 +1,7 @@
 import os
 from databricks import sql
 from databricks.sdk.core import Config
+from databricks.sdk import WorkspaceClient
 import streamlit as st
 import pandas as pd
 from utils.routing_helpers import greedy_assign_priority, compute_kpis
@@ -26,15 +27,14 @@ def get_user_token():
     try:
         headers = st.context.headers
         user_token = headers.get("X-Forwarded-Access-Token")
-        if user_token:
-            return user_token
+        return user_token
     except Exception:
-        pass
-    return None
+        return None
 
-@st.cache_resource
-def get_sql_connection(user_token=None):
-    """Create a cached SQL connection with OBO or service principal auth"""
+def get_sql_connection():
+    """Create SQL connection with OBO or service principal auth"""
+    user_token = get_user_token()
+    
     connect_kwargs = {
         "server_hostname": cfg.host,
         "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
@@ -47,30 +47,25 @@ def get_sql_connection(user_token=None):
     
     return sql.connect(**connect_kwargs)
 
-def sqlQuery(query: str, conn) -> pd.DataFrame:
-    """Execute a SQL query using the provided connection"""
-    with conn.cursor() as cursor:
-        cursor.execute(query)
-        return cursor.fetchall_arrow().to_pandas()
-
-# Get user token for OBO authentication
-user_token = get_user_token()
-
-# Get SQL connection (cached)
-sql_conn = get_sql_connection(user_token)
+def sqlQuery(query: str) -> pd.DataFrame:
+    """Execute a SQL query"""
+    with get_sql_connection() as connection:
+        with connection.cursor() as cursor:
+            cursor.execute(query)
+            return cursor.fetchall_arrow().to_pandas()
 
 # -------------------------------------------------
 # Data Load
 # -------------------------------------------------
 @st.cache_data(ttl=60)
-def load_data(_conn):
-    """Load data from Databricks. Note: _conn is not hashed by cache."""
-    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog", _conn)
-    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored", _conn)
-    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline", _conn)
+def load_data():
+    """Load data from Databricks"""
+    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog")
+    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored")
+    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline")
     return machines, candidates, assigned_baseline
 
-machines_df, cand_df, assigned_baseline_df = load_data(sql_conn)
+machines_df, cand_df, assigned_baseline_df = load_data()
 
 # Compute baseline KPIs
 kpi_baseline = compute_kpis(assigned_baseline_df, machines_df)
