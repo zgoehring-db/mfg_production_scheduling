@@ -66,7 +66,7 @@ def add_override(part_id, assigned_machine_id, assigned_by, notes):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                INSERT INTO {SCHEMA}.{OVERRIDES_TABLE_NAME} (part_id, assigned_machine_id, assigned_by, assigned_at, notes)
+                INSERT INTO {SCHEMA}.{OVERRIDES_TABLE_NAME} (order_id, machine_id, assigned_by, assigned_at, notes)
                 VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
             """, (part_id, assigned_machine_id, assigned_by, notes))
             conn.commit()
@@ -76,7 +76,7 @@ def fetch_overrides():
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(f"""
-                SELECT part_id, assigned_machine_id, assigned_by, assigned_at, notes
+                SELECT order_id, machine_id, assigned_by, assigned_at, notes
                 FROM {SCHEMA}.{OVERRIDES_TABLE_NAME}
                 ORDER BY assigned_at DESC
             """)
