@@ -17,64 +17,60 @@ SCHEMA = os.getenv("SCHEMA")
 assert os.getenv("DATABRICKS_WAREHOUSE_ID"), "DATABRICKS_WAREHOUSE_ID must be set in app.yaml."
 
 # -------------------------------------------------
-# Databricks SQL connection helper
+# Databricks SQL connection helper (following cookbook pattern)
 # -------------------------------------------------
-def sqlQuery(query: str) -> pd.DataFrame:
-    cfg = Config()  # Handles Databricks auth automatically
-    
-    # Try to get OBO token from context
+cfg = Config()
+
+def get_user_token():
+    """Get OBO token from Streamlit context headers"""
     try:
         headers = st.context.headers
-        st.info(f"🔍 DEBUG: Available headers: {list(headers.keys())}")
-        
-        user_access_token = headers.get("X-Forwarded-Access-Token")
-        
-        if user_access_token:
-            # Mask token for security but show it exists
-            masked = user_access_token[:10] + "..." if len(user_access_token) > 10 else "SHORT_TOKEN"
-            st.success(f"✅ OBO token found: {masked}")
-        else:
-            st.warning("⚠️ No OBO token found in X-Forwarded-Access-Token header")
-            # Check for alternative header names
-            for key in headers.keys():
-                if 'token' in key.lower() or 'auth' in key.lower():
-                    st.info(f"🔍 Found auth-related header: {key}")
-            user_access_token = None
-    except Exception as e:
-        st.error(f"❌ Could not access context headers: {e}")
-        import traceback
-        st.code(traceback.format_exc())
-        user_access_token = None
-    
-    # Connect with appropriate authentication
+        user_token = headers.get("X-Forwarded-Access-Token")
+        if user_token:
+            return user_token
+    except Exception:
+        pass
+    return None
+
+@st.cache_resource
+def get_sql_connection(user_token=None):
+    """Create a cached SQL connection with OBO or service principal auth"""
     connect_kwargs = {
         "server_hostname": cfg.host,
         "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
     }
     
-    if user_access_token:
-        st.info("🔐 Using OBO authentication")
-        connect_kwargs["access_token"] = user_access_token
+    if user_token:
+        connect_kwargs["access_token"] = user_token
     else:
-        st.info("🔐 Using service principal authentication")
         connect_kwargs["credentials_provider"] = lambda: cfg.authenticate
+    
+    return sql.connect(**connect_kwargs)
 
-    with sql.connect(**connect_kwargs) as connection:
-        with connection.cursor() as cursor:
-            cursor.execute(query)
-            return cursor.fetchall_arrow().to_pandas()
+def sqlQuery(query: str, conn) -> pd.DataFrame:
+    """Execute a SQL query using the provided connection"""
+    with conn.cursor() as cursor:
+        cursor.execute(query)
+        return cursor.fetchall_arrow().to_pandas()
+
+# Get user token for OBO authentication
+user_token = get_user_token()
+
+# Get SQL connection (cached)
+sql_conn = get_sql_connection(user_token)
 
 # -------------------------------------------------
 # Data Load
 # -------------------------------------------------
 @st.cache_data(ttl=60)
-def load_data():
-    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog")
-    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored")
-    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline")
+def load_data(_conn):
+    """Load data from Databricks. Note: _conn is not hashed by cache."""
+    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog", _conn)
+    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored", _conn)
+    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline", _conn)
     return machines, candidates, assigned_baseline
 
-machines_df, cand_df, assigned_baseline_df = load_data()
+machines_df, cand_df, assigned_baseline_df = load_data(sql_conn)
 
 # Compute baseline KPIs
 kpi_baseline = compute_kpis(assigned_baseline_df, machines_df)
