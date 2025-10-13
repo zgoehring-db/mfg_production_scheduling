@@ -133,13 +133,22 @@ st.markdown("""
         }
 
         /* --- FULL WIDTH DATAFRAMES --- */
-        [data-testid="stDataFrame"] {
+        [data-testid="stDataFrame"],
+        [data-testid="stDataFrame"] > div,
+        [data-testid="stDataFrame"] iframe,
+        div[data-testid="stDataFrame"],
+        .dataframe-container {
+            width: 100% !important;
+            max-width: 100% !important;
+        }
+        
+        /* Force full width on all dataframe elements */
+        .stDataFrame {
             width: 100% !important;
         }
-        [data-testid="stDataFrame"] > div {
-            width: 100% !important;
-        }
-        div[data-testid="stDataFrame"] iframe {
+        
+        /* Ensure parent containers don't constrain width */
+        div[data-testid="column"] > div > div[data-testid="stVerticalBlock"] > div[data-testid="stDataFrame"] {
             width: 100% !important;
         }
 
