@@ -27,8 +27,7 @@ def sqlQuery(query: str) -> pd.DataFrame:
     with sql.connect(
         server_hostname=cfg.host,
         access_token=user_access_token,
-        http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
-        credentials_provider=lambda: cfg.authenticate
+        http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
     ) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query)
@@ -188,10 +187,12 @@ if order_selected:
             override_row["override_timestamp"] = pd.Timestamp.now()
 
             # Write to UC table
+            headers = st.context.headers
+            user_access_token = headers["X-Forwarded-Access-Token"]
             with sql.connect(
                 server_hostname=Config().host,
-                http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
-                credentials_provider=lambda: Config().authenticate
+                access_token=user_access_token,
+                http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
             ) as conn:
                 override_row.to_sql(
                     name=f"{CATALOG}.{SCHEMA}.assigned_overrides",
