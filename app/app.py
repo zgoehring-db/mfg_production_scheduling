@@ -182,6 +182,8 @@ st.markdown("""
 
 # Sidebar logo + controls
 st.sidebar.image("assets/SmartFab_logo_cropped.png", use_container_width=True)
+st.sidebar.markdown("<h1 style='text-align: center;'>Production Scheduling Agent</h2>", unsafe_allow_html=True)
+st.sidebar.markdown("---")
 st.sidebar.header("Machine Downtime Simulator")
 down_machines = st.sidebar.multiselect(
     "Select machines that are down:",
@@ -278,7 +280,7 @@ cols = st.columns(4)
 kpi_labels = [
     "Expected Profit ($)",
     "On-Time Deliveries",
-    "Factory Utilization",
+    "Factory Utilization (%)",
     "Orders Completed"
 ]
 
@@ -300,9 +302,20 @@ for i, label in enumerate(kpi_labels):
     delta = scenario_vals[i] - baseline_vals[i]
     color = "green" if delta > 0 else "red" if delta < 0 else "#555"
     
+    # Format value based on metric type
+    if i == 1 or i == 3:  # On-Time Deliveries or Orders Completed (whole numbers)
+        value_str = f"{int(scenario_vals[i]):,}"
+        delta_str = f"{int(delta):+,}"
+    elif i == 2:  # Factory Utilization (as percentage, no decimal)
+        value_str = f"{int(scenario_vals[i]*100)}"
+        delta_str = f"{int(delta*100):+}"
+    else:  # Profit (keep decimals)
+        value_str = f"{scenario_vals[i]:,.2f}"
+        delta_str = f"{delta:+,.2f}"
+    
     # Only show delta if routes were recalculated
     if recalc:
-        delta_html = f'<div class="kpi-delta" style="color:{color};">Δ {delta:+.2f}</div>'
+        delta_html = f'<div class="kpi-delta" style="color:{color};">Δ {delta_str}</div>'
     else:
         delta_html = ''
     
@@ -310,7 +323,7 @@ for i, label in enumerate(kpi_labels):
         f"""
         <div class="kpi-card">
             <div class="kpi-label">{label}</div>
-            <div class="kpi-value">{scenario_vals[i]:,.2f}</div>
+            <div class="kpi-value">{value_str}</div>
             {delta_html}
         </div>
         """,
