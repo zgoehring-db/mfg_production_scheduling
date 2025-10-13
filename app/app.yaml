@@ -11,23 +11,13 @@ env:
   
   # Lakebase config
   - name: "LAKEBASE_INSTANCE_NAME"
-    valueFrom: "lakebase-instance"
+    value: "mfg-production-scheduling-demo"
   - name: "LAKEBASE_SCHEMA"
     value: "production_scheduling_demo"
   - name: "LAKEBASE_OVERRIDES_TABLE_NAME"
     value: "assignment_overrides"
-  - name: "LAKEBASE_PART_LOOKUP_TABLE_NAME"
-    value: "part_lookup"
   
   # PostgreSQL config (for Lakebase)
-  - name: "PGDATABASE"
-    valueFrom: "lakebase-database"
-  - name: "PGHOST"
-    valueFrom: "lakebase-host"
-  - name: "PGPORT"
-    value: "5432"
-  - name: "PGSSLMODE"
-    value: "require"
   - name: "PGAPPNAME"
     value: "production_scheduling_app"
 
