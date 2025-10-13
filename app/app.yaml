@@ -2,12 +2,35 @@ command: ["streamlit", "run", "app.py"]
 env:
   - name: "DATABRICKS_WAREHOUSE_ID"
     valueFrom: "sql-warehouse"
-  # uc config
+  
+  # Unity Catalog config
   - name: "CATALOG"
     value: "zg"
   - name: "SCHEMA"
     value: "production_scheduling_demo"
+  
+  # Lakebase config
+  - name: "LAKEBASE_INSTANCE_NAME"
+    valueFrom: "lakebase-instance"
+  - name: "LAKEBASE_SCHEMA"
+    value: "production_scheduling_demo"
+  - name: "LAKEBASE_OVERRIDES_TABLE_NAME"
+    value: "assignment_overrides"
+  - name: "LAKEBASE_PART_LOOKUP_TABLE_NAME"
+    value: "part_lookup"
+  
+  # PostgreSQL config (for Lakebase)
+  - name: "PGDATABASE"
+    valueFrom: "lakebase-database"
+  - name: "PGHOST"
+    valueFrom: "lakebase-host"
+  - name: "PGPORT"
+    value: "5432"
+  - name: "PGSSLMODE"
+    value: "require"
+  - name: "PGAPPNAME"
+    value: "production_scheduling_app"
 
-  # streamlit config
+  # Streamlit config
   - name: STREAMLIT_BROWSER_GATHER_USAGE_STATS
     value: "false"

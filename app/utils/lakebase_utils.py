@@ -3,6 +3,10 @@ import time
 import uuid
 from databricks import sdk
 from psycopg_pool import ConnectionPool
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Database connection setup
 workspace_client = sdk.WorkspaceClient()

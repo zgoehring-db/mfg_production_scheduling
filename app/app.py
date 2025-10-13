@@ -5,6 +5,7 @@ from databricks.sdk import WorkspaceClient
 import streamlit as st
 import pandas as pd
 from utils.routing_helpers import greedy_assign_priority, compute_kpis
+from utils.lakebase_utils import add_override, fetch_overrides
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,74 +19,32 @@ SCHEMA = os.getenv("SCHEMA")
 assert os.getenv("DATABRICKS_WAREHOUSE_ID"), "DATABRICKS_WAREHOUSE_ID must be set in app.yaml."
 
 # -------------------------------------------------
-# Databricks SQL connection helper (following cookbook pattern)
+# Databricks SQL connection helper
 # -------------------------------------------------
 cfg = Config()
+workspace_client = WorkspaceClient()
+current_user = workspace_client.current_user.me().user_name
 
-def get_user_token():
-    """Get OBO token from Streamlit context headers"""
-    try:
-        headers = st.context.headers
-        user_token = headers.get("X-Forwarded-Access-Token")
-        return user_token
-    except Exception:
-        return None
-
-def get_sql_connection(user_token=None):
-    """Create SQL connection with OBO or service principal auth"""
-    st.write("🔍 DEBUG Connection Parameters:")
-    st.write(f"  - server_hostname: {cfg.host}")
-    st.write(f"  - http_path: /sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}")
-    st.write(f"  - has user_token: {bool(user_token)}")
-    
-    if user_token:
-        st.write(f"  - token preview: {user_token[:50]}...")
-    
-    connect_kwargs = {
-        "server_hostname": cfg.host,
-        "http_path": f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}"
-    }
-    
-    if user_token:
-        connect_kwargs["access_token"] = user_token
-    else:
-        connect_kwargs["credentials_provider"] = lambda: cfg.authenticate
-    
-    try:
-        st.write("🔄 Attempting connection...")
-        conn = sql.connect(**connect_kwargs)
-        st.success("✅ Connection successful!")
-        return conn
-    except Exception as e:
-        st.error(f"❌ Connection failed!")
-        st.error(f"Error type: {type(e).__name__}")
-        st.error(f"Error message: {str(e)}")
-        import traceback
-        st.code(traceback.format_exc())
-        raise
-
-def sqlQuery(query: str, user_token=None) -> pd.DataFrame:
-    """Execute a SQL query"""
-    with get_sql_connection(user_token) as connection:
+def sqlQuery(query: str) -> pd.DataFrame:
+    """Execute a SQL query using service principal authentication"""
+    with sql.connect(
+        server_hostname=cfg.host,
+        http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
+        credentials_provider=lambda: cfg.authenticate
+    ) as connection:
         with connection.cursor() as cursor:
             cursor.execute(query)
             return cursor.fetchall_arrow().to_pandas()
 
-# Get user token for OBO authentication (at module level)
-user_token = get_user_token()
-if user_token:
-    st.sidebar.success(f"✅ OBO Token Retrieved: {user_token[:20]}...")
-else:
-    st.sidebar.warning("⚠️ No OBO token - using service principal")
-
 # -------------------------------------------------
 # Data Load
 # -------------------------------------------------
+@st.cache_data(ttl=60)
 def load_data():
-    """Load data from Databricks."""
-    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog", user_token)
-    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored", user_token)
-    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline", user_token)
+    """Load data from Databricks"""
+    machines = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.machines_catalog")
+    candidates = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.candidate_routes_scored")
+    assigned_baseline = sqlQuery(f"SELECT * FROM {CATALOG}.{SCHEMA}.assigned_baseline")
     return machines, candidates, assigned_baseline
 
 machines_df, cand_df, assigned_baseline_df = load_data()
@@ -182,7 +141,7 @@ st.markdown("""
 
 # Sidebar logo + controls
 st.sidebar.image("assets/SmartFab_logo_cropped.png", use_container_width=True)
-st.sidebar.header("Scenario Controls")
+st.sidebar.header("Machine Downtime Simulator")
 down_machines = st.sidebar.multiselect(
     "Select machines that are down:",
     machines_df["machine_id"].tolist(),
@@ -201,12 +160,17 @@ else:
 st.sidebar.markdown("---")
 st.sidebar.subheader("Manual Override")
 
+# Initialize session state for form reset
+if 'override_form_key' not in st.session_state:
+    st.session_state.override_form_key = 0
+
 # Dropdown for order selection
 order_selected = st.sidebar.selectbox(
     "Select Order to Override:",
     assigned_scenario_df["order_id"].unique(),
     index=None,
-    placeholder="Choose an order..."
+    placeholder="Choose an order...",
+    key=f"order_select_{st.session_state.override_form_key}"
 )
 
 if order_selected:
@@ -220,37 +184,44 @@ if order_selected:
         "Select New Machine:",
         machines_df["machine_id"].tolist(),
         index=None,
-        placeholder="Choose new machine..."
+        placeholder="Choose new machine...",
+        key=f"machine_select_{st.session_state.override_form_key}"
     )
 
+    # Optional notes field
+    notes = st.sidebar.text_input(
+        "Notes (optional):", 
+        placeholder="Reason for override...",
+        key=f"notes_input_{st.session_state.override_form_key}"
+    )
+    
     if st.sidebar.button("💾 Save Override"):
         if new_machine and new_machine != current_machine:
-            override_row = assigned_scenario_df[
-                assigned_scenario_df["order_id"] == order_selected
-            ].copy()
-            override_row["machine_id"] = new_machine
-            override_row["override_timestamp"] = pd.Timestamp.now()
-
-            # Write to UC table
-            with sql.connect(
-                server_hostname=Config().host,
-                http_path=f"/sql/1.0/warehouses/{os.getenv('DATABRICKS_WAREHOUSE_ID')}",
-                credentials_provider=lambda: Config().authenticate
-            ) as conn:
-                override_row.to_sql(
-                    name=f"{CATALOG}.{SCHEMA}.assigned_overrides",
-                    con=conn._conn,  # reuse databricks connection
-                    if_exists="append",
-                    index=False,
+            try:
+                # Save override using Lakebase
+                add_override(
+                    part_id=order_selected,
+                    assigned_machine_id=new_machine,
+                    assigned_by=current_user,
+                    notes=notes if notes else None
                 )
-            st.sidebar.success(f"Override saved for {order_selected} → {new_machine}")
+                st.sidebar.success(f"✅ Override saved for {order_selected} → {new_machine}")
+                # Increment form key to reset all widgets
+                st.session_state.override_form_key += 1
+                # Wait a moment for user to see the success message
+                import time
+                time.sleep(1.5)
+                # Refresh the page to reset the form
+                st.rerun()
+            except Exception as e:
+                st.sidebar.error(f"❌ Failed to save override: {str(e)}")
         else:
-            st.sidebar.warning("Please choose a new machine before saving.")
+            st.sidebar.warning("⚠️ Please choose a new machine before saving.")
 
 # -------------------------------------------------
 # KPI Cards
 # -------------------------------------------------
-st.markdown("### 📊 Key Performance Indicators")
+st.markdown("### 📊 Factory Performance Summary")
 cols = st.columns(4)
 # -------------------------------------------------
 # KPI Labels & Values
@@ -298,5 +269,24 @@ for i, label in enumerate(kpi_labels):
 st.markdown("")  # Add spacing
 st.markdown("### 🧾 Assigned Orders")
 st.dataframe(assigned_scenario_df, use_container_width=True)
+
+# -------------------------------------------------
+# Override History Table
+# -------------------------------------------------
+st.markdown("### 📝 Override History")
+
+try:
+    overrides_data = fetch_overrides()
+    if overrides_data:
+        # Convert to DataFrame with proper column names
+        overrides_df = pd.DataFrame(
+            overrides_data,
+            columns=["Order ID", "Machine ID", "Assigned By", "Assigned At", "Notes"]
+        )
+        st.dataframe(overrides_df, use_container_width=True)
+    else:
+        st.info("No overrides recorded yet.")
+except Exception as e:
+    st.warning(f"Unable to load override history: {str(e)}")
 # -------------------------------------------------
 
