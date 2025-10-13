@@ -25,13 +25,25 @@ def sqlQuery(query: str) -> pd.DataFrame:
     # Try to get OBO token from context
     try:
         headers = st.context.headers
+        st.info(f"🔍 DEBUG: Available headers: {list(headers.keys())}")
+        
         user_access_token = headers.get("X-Forwarded-Access-Token")
-        if not user_access_token:
-            st.warning("⚠️ No OBO token found in headers. Available headers: " + str(list(headers.keys())))
-            # Fallback to service principal auth
+        
+        if user_access_token:
+            # Mask token for security but show it exists
+            masked = user_access_token[:10] + "..." if len(user_access_token) > 10 else "SHORT_TOKEN"
+            st.success(f"✅ OBO token found: {masked}")
+        else:
+            st.warning("⚠️ No OBO token found in X-Forwarded-Access-Token header")
+            # Check for alternative header names
+            for key in headers.keys():
+                if 'token' in key.lower() or 'auth' in key.lower():
+                    st.info(f"🔍 Found auth-related header: {key}")
             user_access_token = None
     except Exception as e:
-        st.warning(f"⚠️ Could not access context headers: {e}")
+        st.error(f"❌ Could not access context headers: {e}")
+        import traceback
+        st.code(traceback.format_exc())
         user_access_token = None
     
     # Connect with appropriate authentication
@@ -41,8 +53,10 @@ def sqlQuery(query: str) -> pd.DataFrame:
     }
     
     if user_access_token:
+        st.info("🔐 Using OBO authentication")
         connect_kwargs["access_token"] = user_access_token
     else:
+        st.info("🔐 Using service principal authentication")
         connect_kwargs["credentials_provider"] = lambda: cfg.authenticate
 
     with sql.connect(**connect_kwargs) as connection:
