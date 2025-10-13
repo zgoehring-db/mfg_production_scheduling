@@ -21,7 +21,8 @@ assert os.getenv("DATABRICKS_WAREHOUSE_ID"), "DATABRICKS_WAREHOUSE_ID must be se
 # -------------------------------------------------
 def sqlQuery(query: str) -> pd.DataFrame:
     cfg = Config()  # Handles Databricks auth automatically
-    user_access_token = st.context.headers.get('x-forwarded-access-token') # obo authentication
+    headers = st.context.headers
+    user_access_token = headers["X-Forwarded-Access-Token"] # obo authentication
 
     with sql.connect(
         server_hostname=cfg.host,
