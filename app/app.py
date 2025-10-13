@@ -140,7 +140,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar logo + controls
-st.sidebar.image("assets/SmartFab_logo_cropped.png", use_container_width=True)
+st.sidebar.image("assets/SmartFab_logo_cropped.png", use_column_width=True)
 st.sidebar.header("Machine Downtime Simulator")
 down_machines = st.sidebar.multiselect(
     "Select machines that are down:",
@@ -268,7 +268,7 @@ for i, label in enumerate(kpi_labels):
 # -------------------------------------------------
 st.markdown("")  # Add spacing
 st.markdown("### 🧾 Assigned Orders")
-st.dataframe(assigned_scenario_df, use_container_width=True)
+st.dataframe(assigned_scenario_df)
 
 # -------------------------------------------------
 # Override History Table
@@ -283,7 +283,7 @@ try:
             overrides_data,
             columns=["Order ID", "Machine ID", "Assigned By", "Assigned At", "Notes"]
         )
-        st.dataframe(overrides_df, use_container_width=True)
+        st.dataframe(overrides_df)
     else:
         st.info("No overrides recorded yet.")
 except Exception as e:
