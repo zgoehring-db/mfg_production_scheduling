@@ -69,6 +69,31 @@ kpi_baseline = compute_kpis(assigned_baseline_df, machines_df)
 # -------------------------------------------------
 st.markdown("""
     <style>
+        /* --- Full width layout for Databricks Apps --- */
+        .stApp {
+            max-width: 100% !important;
+        }
+        
+        .stApp > div {
+            max-width: 100% !important;
+        }
+        
+        .main {
+            max-width: 100% !important;
+        }
+        
+        .main .block-container {
+            max-width: 100% !important;
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            padding-top: 1rem !important;
+            padding-bottom: 1rem !important;
+        }
+        
+        .main .block-container > div {
+            max-width: 100% !important;
+        }
+        
         /* --- GLOBAL PAGE STYLE --- */
         [data-testid="stAppViewContainer"] {
             background-color: #f5f7fb;
@@ -130,7 +155,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Sidebar logo + controls
-st.sidebar.image("assets/SmartFab_logo_cropped.png", use_column_width=True)
+st.sidebar.image("assets/SmartFab_logo_cropped.png", use_container_width=True)
 st.sidebar.header("Machine Downtime Simulator")
 down_machines = st.sidebar.multiselect(
     "Select machines that are down:",
@@ -258,7 +283,7 @@ for i, label in enumerate(kpi_labels):
 # -------------------------------------------------
 st.markdown("")  # Add spacing
 st.markdown("### 🧾 Assigned Orders")
-st.dataframe(assigned_scenario_df)
+st.dataframe(assigned_scenario_df, use_container_width=True)
 
 # -------------------------------------------------
 # Override History Table
@@ -273,7 +298,7 @@ try:
             overrides_data,
             columns=["Order ID", "Machine ID", "Assigned By", "Assigned At", "Notes"]
         )
-        st.dataframe(overrides_df)
+        st.dataframe(overrides_df, use_container_width=True)
     else:
         st.info("No overrides recorded yet.")
 except Exception as e:
