@@ -74,6 +74,34 @@ CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.candidate_routes (
 )
 """)
 
+spark.sql(f"""
+CREATE TABLE IF NOT EXISTS {CATALOG}.{SCHEMA}.machine_status (
+  machine_id STRING COMMENT 'Unique machine identifier',
+  machine_name STRING COMMENT 'Descriptive name of the machine',
+  status STRING COMMENT 'Current status of the machine (operational, maintenance, etc.)',
+  reported_at TIMESTAMP COMMENT 'Timestamp of the last status update'
+)          
+""")
+
+# COMMAND ----------
+
+spark.sql(f"""
+  INSERT INTO {CATALOG}.{SCHEMA}.machine_status VALUES
+  ("CNC-LATHE-A1", "CNC Lathe A1", "down", current_timestamp()),
+  ("CNC-LATHE-A2", "CNC Lathe A2", "up", current_timestamp()),
+  ("MILL-B1", "Vertical Mill B1", "up", current_timestamp()),
+  ("MILL-B2", "Vertical Mill B2", "up", current_timestamp()),
+  ("BAT-ASSEM-1", "Battery Assembly 1", "up", current_timestamp()),
+  ("BAT-ASSEM-2", "Battery Assembly 2", "up", current_timestamp()),
+  ("BAT-ASSEM-3", "Battery Assembly 3", "up", current_timestamp()),
+  ("ELEC-ASSEM-1", "Electronics Assembly 1", "up", current_timestamp()),
+  ("ELEC-ASSEM-2", "Electronics Assembly 2", "up", current_timestamp()),
+  ("ELEC-ASSEM-3", "Electronics Assembly 3", "up", current_timestamp()),
+  ("ASSEMBLY-C1", "Final Assembly Line 1", "up", current_timestamp()),
+  ("ASSEMBLY-C2", "Final Assembly Line 2", "up", current_timestamp()),
+  ("ASSEMBLY-C3", "Final Assembly Line 3", "up", current_timestamp())
+""")
+
 # COMMAND ----------
 
 # Load tables
