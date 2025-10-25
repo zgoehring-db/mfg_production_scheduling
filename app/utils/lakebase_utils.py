@@ -48,9 +48,16 @@ def get_connection_pool():
             f"host={os.getenv('PGHOST')} "
             f"port={os.getenv('PGPORT')} "
             f"sslmode={os.getenv('PGSSLMODE', 'require')} "
-            f"application_name={os.getenv('PGAPPNAME')}"
+            f"application_name={os.getenv('PGAPPNAME')} "
+            f"connect_timeout=10"  # 10 second connection timeout
         )
-        connection_pool = ConnectionPool(conn_string, min_size=2, max_size=10)
+        # Reduced pool size and added timeout
+        connection_pool = ConnectionPool(
+            conn_string, 
+            min_size=1, 
+            max_size=5,
+            timeout=10  # 10 second timeout to get connection from pool
+        )
     return connection_pool
 
 def get_connection():

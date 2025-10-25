@@ -88,38 +88,33 @@ def greedy_assign_priority(candidates_df, machines_catalog_df, planning_days=21,
 def compute_kpis(assigned_pd, machines_catalog_pd, planning_days=21):
     """
     Compute high-level KPIs from an assigned order–machine DataFrame.
-
-    Parameters
-    ----------
-    assigned_pd : pd.DataFrame
-        Assigned orders with columns ['profit', 'p_best', 'processing_hours', 'order_id'].
-    machines_catalog_pd : pd.DataFrame
-        Machines with ['daily_capacity_hours'].
-    planning_days : int
-        Planning horizon (used for total capacity calculation).
-
-    Returns
-    -------
-    dict : KPI metrics (profit, on-time proxy, utilization, orders completed)
+    Replaces factory utilization with OEE (Overall Equipment Effectiveness).
     """
-    if assigned_pd.shape[0] == 0:
+
+    if assigned_pd.empty:
         return {
             "expected_profit": 0.0,
             "expected_ontime_deliveries": 0.0,
-            "factory_capacity_utilization": 0.0,
+            "factory_oee": 0.0,
             "expected_orders_completed": 0,
         }
 
     total_profit = assigned_pd["profit"].sum()
-    expected_ontime = assigned_pd["p_best"].sum()  # proxy metric
+    expected_ontime = assigned_pd["p_best"].sum()  # proxy for on-time performance
     total_used = assigned_pd["processing_hours"].sum()
     total_capacity = machines_catalog_pd["daily_capacity_hours"].sum() * planning_days
-    factory_util = total_used / total_capacity
+
+    # --- OEE components ---
+    availability = min(total_used / total_capacity, 1.0)                # machine uptime vs capacity
+    performance = assigned_pd["p_best"].mean()                          # proxy for throughput efficiency
+    quality = 0.98                                                      # assume 98% good parts for now
+    factory_oee = availability * performance * quality
+
     orders_completed = assigned_pd["order_id"].nunique()
 
     return {
         "expected_profit": float(total_profit),
         "expected_ontime_deliveries": float(expected_ontime),
-        "factory_capacity_utilization": float(factory_util),
+        "factory_oee": float(factory_oee),
         "expected_orders_completed": int(orders_completed),
     }

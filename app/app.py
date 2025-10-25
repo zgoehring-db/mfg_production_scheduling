@@ -259,9 +259,6 @@ if order_selected:
                 st.sidebar.success(f"✅ Override saved for {order_selected} → {new_machine}")
                 # Increment form key to reset all widgets
                 st.session_state.override_form_key += 1
-                # Wait a moment for user to see the success message
-                import time
-                time.sleep(1.5)
                 # Refresh the page to reset the form
                 st.rerun()
             except Exception as e:
@@ -280,23 +277,24 @@ cols = st.columns(4)
 kpi_labels = [
     "Expected Profit ($)",
     "On-Time Deliveries",
-    "Factory Utilization (%)",
+    "Factory OEE (%)",
     "Orders Completed"
 ]
 
 baseline_vals = [
     kpi_baseline["expected_profit"],
     kpi_baseline["expected_ontime_deliveries"],
-    kpi_baseline["factory_capacity_utilization"],
+    kpi_baseline["factory_oee"],
     kpi_baseline["expected_orders_completed"],
 ]
 
 scenario_vals = [
     kpi_scenario["expected_profit"],
     kpi_scenario["expected_ontime_deliveries"],
-    kpi_scenario["factory_capacity_utilization"],
+    kpi_scenario["factory_oee"],
     kpi_scenario["expected_orders_completed"],
 ]
+
 
 for i, label in enumerate(kpi_labels):
     delta = scenario_vals[i] - baseline_vals[i]
@@ -305,17 +303,24 @@ for i, label in enumerate(kpi_labels):
     # Format value based on metric type
     if i == 1 or i == 3:  # On-Time Deliveries or Orders Completed (whole numbers)
         value_str = f"{int(scenario_vals[i]):,}"
-        delta_str = f"{int(delta):+,}"
-    elif i == 2:  # Factory Utilization (as percentage, no decimal)
-        value_str = f"{int(scenario_vals[i]*100)}"
-        delta_str = f"{int(delta*100):+}"
+        delta_str = f"{abs(int(delta)):,}"
+    elif i == 2:  # Factory OEE (percentage)
+        value_str = f"{int(scenario_vals[i] * 100)}"
+        delta_str = f"{abs(int(delta * 100))}"
     else:  # Profit (keep decimals)
         value_str = f"{scenario_vals[i]:,.2f}"
-        delta_str = f"{delta:+,.2f}"
+        delta_str = f"{abs(delta):,.2f}"
     
     # Only show delta if routes were recalculated
     if recalc:
-        delta_html = f'<div class="kpi-delta" style="color:{color};">Δ {delta_str}</div>'
+        if delta > 0:
+            arrow = "↑"
+            delta_html = f'<div class="kpi-delta" style="color:{color};">{arrow} {delta_str}</div>'
+        elif delta < 0:
+            arrow = "↓"
+            delta_html = f'<div class="kpi-delta" style="color:{color};">{arrow} {delta_str}</div>'
+        else:
+            delta_html = '<div class="kpi-delta" style="color:#555;">—</div>'
     else:
         delta_html = ''
     
